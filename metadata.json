@@ -1,0 +1,5 @@
+{
+  "name": "CyberDefender Console",
+  "description": "A high-fidelity cybersecurity operator dashboard with real-time telemetry and threat visualization.",
+  "requestFramePermissions": []
+}
