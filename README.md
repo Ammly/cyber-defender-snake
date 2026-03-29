@@ -1,6 +1,10 @@
-# Safaricom Decode 2025 - Cyber Defender Snake Game
+# Safaricom De{c0}dE 2025 - Cyber Defender Snake Game
 
-Play snake while learning about cyber security concepts.
+Play snake while learning ab6ut cyber security concepts.
+
+## Live Demo
+
+[De{c0}dE Cyber Defender Snake Game](https://cyber-defender-snake.vercel.app/)
 
 ## How to Play
 
