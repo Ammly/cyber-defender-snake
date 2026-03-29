@@ -1,4 +1,4 @@
-# Safaricom De{c0}dE 2025 - Cyber Defender Snake Game
+# Safaricom De{c0}dE 2026 - Cyber Defender Snake Game
 
 Play snake while learning ab6ut cyber security concepts.
 
