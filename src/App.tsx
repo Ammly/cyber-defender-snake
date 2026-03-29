@@ -135,16 +135,16 @@ const LessonPopup = ({ lesson, type, onClose }: { lesson: Lesson, type: NodeType
       exit={{ opacity: 0, scale: 0.9, y: 20 }}
       className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6 bg-slate-900/40 backdrop-blur-sm"
     >
-      <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
-        <div className="h-1.5 w-full bg-slate-100">
-          <motion.div 
+      <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden max-h-[90dvh] flex flex-col">
+        <div className="h-1.5 w-full bg-slate-100 shrink-0">
+          <motion.div
             initial={{ width: '100%' }}
             animate={{ width: `${progress}%` }}
             transition={{ duration: 0.5, ease: "linear" }}
             className={`h-full ${type === 'threat' ? 'bg-safaricom-red' : 'bg-safaricom-green'}`}
           />
         </div>
-        <div className="p-5 md:p-8">
+        <div className="p-5 md:p-8 overflow-y-auto">
           <div className="flex justify-between items-start mb-6">
             <div className="flex items-center gap-4">
               <div className={`p-3 rounded-xl ${type === 'threat' ? 'bg-safaricom-red/10 text-safaricom-red' : 'bg-safaricom-green/10 text-safaricom-green'}`}>
@@ -457,7 +457,7 @@ export default function App() {
   }, [moveSnake, difficulty]);
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden font-sans selection:bg-safaricom-green/20">
+    <div className="flex flex-col h-[100dvh] font-sans selection:bg-safaricom-green/20">
       {/* Top Navigation */}
       <header className="fixed top-0 w-full z-50 bg-white border-b border-slate-100 h-14 flex justify-between items-center px-4 md:px-6">
         <div className="flex items-center gap-3 md:gap-6">
@@ -499,7 +499,7 @@ export default function App() {
         </div>
       </header>
 
-      <div className="flex flex-1 pt-14">
+      <div className="flex flex-1 pt-14 overflow-hidden">
         {/* Sidebar Navigation */}
         <aside className="hidden md:flex md:flex-col w-60 bg-white h-full py-6 border-r border-slate-100">
           <div className="px-6 mb-8">
@@ -708,18 +708,6 @@ export default function App() {
             </div>
           </div>
 
-          {/* Mobile: difficulty badge */}
-          <div className="absolute top-3 left-3 md:hidden z-30">
-            <div className="flex items-center gap-1.5 px-2 py-1 bg-white/90 rounded-lg border border-slate-200 shadow-sm">
-              <div className="w-1.5 h-1.5 rounded-full bg-safaricom-green animate-pulse"></div>
-              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">{difficulty}</span>
-            </div>
-          </div>
-
-          {/* Mobile: D-pad */}
-          <div className="absolute bottom-4 right-4 md:hidden z-30">
-            <DPad onDir={handleDirection} />
-          </div>
         </main>
 
         {/* Telemetry Sidebar */}
@@ -799,12 +787,48 @@ export default function App() {
         </aside>
       </div>
       
+      {/* Mobile Controls Bar */}
+      <div className="md:hidden shrink-0 flex items-center justify-between px-5 py-3 bg-white border-t border-slate-100">
+        <div className="flex flex-col gap-1.5">
+          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Difficulty</span>
+          <div className="flex flex-col gap-0.5">
+            {(['EASY', 'NORMAL', 'HARD', 'EXPERT'] as const).map((level) => (
+              <button
+                key={level}
+                onClick={() => setDifficulty(level)}
+                className={`flex items-center gap-1.5 px-2 py-1 rounded text-[9px] font-bold uppercase tracking-wider transition-all ${
+                  difficulty === level
+                    ? 'bg-safaricom-green/10 text-safaricom-green'
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}
+              >
+                <div className={`w-1 h-1 rounded-full ${difficulty === level ? 'bg-safaricom-green' : 'bg-slate-300'}`} />
+                {level}
+              </button>
+            ))}
+          </div>
+        </div>
+        <DPad onDir={handleDirection} />
+        <div className="flex flex-col items-end gap-1.5">
+          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Score</span>
+          <span className="text-base font-mono font-bold text-safaricom-green">{score.toLocaleString()}</span>
+          <div className="mt-1 space-y-1">
+            {scoreLog.slice(0, 3).map((log: { id: string; amount: number; reason: string; type: 'success' | 'danger' | 'info' }) => (
+              <div key={log.id} className="flex items-center gap-1 justify-end">
+                <span className="text-[8px] text-slate-400 truncate max-w-[60px]">{log.reason}</span>
+                <span className={`text-[9px] font-bold ${log.type === 'success' ? 'text-safaricom-green' : log.type === 'danger' ? 'text-safaricom-red' : 'text-blue-500'}`}>+{log.amount}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
       <AnimatePresence>
         {currentLesson && (
-          <LessonPopup 
-            lesson={currentLesson.lesson} 
+          <LessonPopup
+            lesson={currentLesson.lesson}
             type={currentLesson.type}
-            onClose={handleLessonComplete} 
+            onClose={handleLessonComplete}
           />
         )}
       </AnimatePresence>
