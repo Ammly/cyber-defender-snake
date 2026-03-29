@@ -133,7 +133,7 @@ const LessonPopup = ({ lesson, type, onClose }: { lesson: Lesson, type: NodeType
       initial={{ opacity: 0, scale: 0.9, y: 20 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.9, y: 20 }}
-      className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-slate-900/40 backdrop-blur-sm"
+      className="fixed inset-0 z-[100] flex items-center justify-center p-4 md:p-6 bg-slate-900/40 backdrop-blur-sm"
     >
       <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
         <div className="h-1.5 w-full bg-slate-100">
@@ -144,7 +144,7 @@ const LessonPopup = ({ lesson, type, onClose }: { lesson: Lesson, type: NodeType
             className={`h-full ${type === 'threat' ? 'bg-safaricom-red' : 'bg-safaricom-green'}`}
           />
         </div>
-        <div className="p-8">
+        <div className="p-5 md:p-8">
           <div className="flex justify-between items-start mb-6">
             <div className="flex items-center gap-4">
               <div className={`p-3 rounded-xl ${type === 'threat' ? 'bg-safaricom-red/10 text-safaricom-red' : 'bg-safaricom-green/10 text-safaricom-green'}`}>
@@ -203,7 +203,7 @@ const LessonPopup = ({ lesson, type, onClose }: { lesson: Lesson, type: NodeType
               }`}
             >
               <span className="text-[11px]">Continue (+1000 pts)</span>
-              <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/20 border border-white/30 text-[8px] shrink-0">
+              <div className="hidden md:flex items-center gap-1 px-1.5 py-0.5 rounded bg-white/20 border border-white/30 text-[8px] shrink-0">
                 <Icons.Keyboard className="w-3 h-3" />
                 <span>SPACE</span>
               </div>
@@ -212,6 +212,19 @@ const LessonPopup = ({ lesson, type, onClose }: { lesson: Lesson, type: NodeType
         </div>
       </div>
     </motion.div>
+  );
+};
+
+const DPad = ({ onDir }: { onDir: (d: { x: number; y: number }) => void }) => {
+  const btnBase = "flex items-center justify-center w-12 h-12 bg-white/90 backdrop-blur-sm border border-slate-200 rounded-xl text-base font-bold text-slate-700 active:bg-slate-100 shadow-md select-none";
+  const press = (d: { x: number; y: number }) => (e: { preventDefault(): void }) => { e.preventDefault(); onDir(d); };
+  return (
+    <div className="grid grid-cols-3 grid-rows-3 gap-1.5" style={{ width: 154, height: 154 }}>
+      <button className={`${btnBase} col-start-2 row-start-1`} onPointerDown={press({ x: 0, y: -1 })}>↑</button>
+      <button className={`${btnBase} col-start-1 row-start-2`} onPointerDown={press({ x: -1, y: 0 })}>←</button>
+      <button className={`${btnBase} col-start-3 row-start-2`} onPointerDown={press({ x: 1, y: 0 })}>→</button>
+      <button className={`${btnBase} col-start-2 row-start-3`} onPointerDown={press({ x: 0, y: 1 })}>↓</button>
+    </div>
   );
 };
 
@@ -242,17 +255,15 @@ export default function App() {
   const lastMoveTimeRef = useRef<number>(0);
   const directionRef = useRef(direction);
   const containerRef = useRef<HTMLDivElement>(null);
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
     const observer = new ResizeObserver(entries => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        // Subtract padding (p-12 = 48px on each side)
-        const actualWidth = width - 96;
-        const actualHeight = height - 96;
-        setGridWidth(Math.floor(actualWidth / GRID_SIZE) - 1);
-        setGridHeight(Math.floor(actualHeight / GRID_SIZE) - 1);
+        setGridWidth(Math.floor(width / GRID_SIZE) - 1);
+        setGridHeight(Math.floor(height / GRID_SIZE) - 1);
       }
     });
     observer.observe(containerRef.current);
@@ -374,43 +385,54 @@ export default function App() {
     setCurrentLesson(null);
   }, [addScore]);
 
+  const handleDirection = useCallback((d: { x: number; y: number }) => {
+    if (d.x !== 0 && directionRef.current.x === 0) {
+      setDirection(d);
+      directionRef.current = d;
+    } else if (d.y !== 0 && directionRef.current.y === 0) {
+      setDirection(d);
+      directionRef.current = d;
+    }
+  }, []);
+
+  const handleTouchStart = useCallback((e: { touches: TouchList }) => {
+    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  }, []);
+
+  const handleTouchEnd = useCallback((e: { changedTouches: TouchList }) => {
+    if (!touchStartRef.current) return;
+    const dx = e.changedTouches[0].clientX - touchStartRef.current.x;
+    const dy = e.changedTouches[0].clientY - touchStartRef.current.y;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 20) return;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      handleDirection({ x: dx > 0 ? 1 : -1, y: 0 });
+    } else {
+      handleDirection({ x: 0, y: dy > 0 ? 1 : -1 });
+    }
+    touchStartRef.current = null;
+  }, [handleDirection]);
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       switch (e.key) {
         case 'ArrowUp':
-          if (directionRef.current.y === 0) {
-            const nextDir = { x: 0, y: -1 };
-            setDirection(nextDir);
-            directionRef.current = nextDir;
-          }
+          handleDirection({ x: 0, y: -1 });
           break;
         case 'ArrowDown':
-          if (directionRef.current.y === 0) {
-            const nextDir = { x: 0, y: 1 };
-            setDirection(nextDir);
-            directionRef.current = nextDir;
-          }
+          handleDirection({ x: 0, y: 1 });
           break;
         case 'ArrowLeft':
-          if (directionRef.current.x === 0) {
-            const nextDir = { x: -1, y: 0 };
-            setDirection(nextDir);
-            directionRef.current = nextDir;
-          }
+          handleDirection({ x: -1, y: 0 });
           break;
         case 'ArrowRight':
-          if (directionRef.current.x === 0) {
-            const nextDir = { x: 1, y: 0 };
-            setDirection(nextDir);
-            directionRef.current = nextDir;
-          }
+          handleDirection({ x: 1, y: 0 });
           break;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [handleDirection]);
 
   useEffect(() => {
     const difficultySpeeds = {
@@ -437,20 +459,26 @@ export default function App() {
   return (
     <div className="flex flex-col h-screen overflow-hidden font-sans selection:bg-safaricom-green/20">
       {/* Top Navigation */}
-      <header className="fixed top-0 w-full z-50 bg-white border-b border-slate-100 h-14 flex justify-between items-center px-6">
-        <div className="flex items-center gap-6">
+      <header className="fixed top-0 w-full z-50 bg-white border-b border-slate-100 h-14 flex justify-between items-center px-4 md:px-6">
+        <div className="flex items-center gap-3 md:gap-6">
           <div className="flex items-center gap-2">
             <span className="text-xl font-extrabold text-safaricom-green tracking-tight">CyberDefender</span>
-            <span className="text-[10px] font-mono text-slate-400 mt-1">[v1.0.4]</span>
+            <span className="hidden md:inline text-[10px] font-mono text-slate-400 mt-1">[v1.0.4]</span>
           </div>
-          <div className="h-4 w-[1px] bg-slate-200"></div>
-          <div className="flex items-center gap-2 px-2.5 py-1 bg-safaricom-green/10 rounded-sm">
+          <div className="hidden md:block h-4 w-[1px] bg-slate-200"></div>
+          <div className="hidden md:flex items-center gap-2 px-2.5 py-1 bg-safaricom-green/10 rounded-sm">
             <div className="w-1.5 h-1.5 rounded-full bg-safaricom-green animate-pulse"></div>
             <span className="text-[10px] font-bold uppercase tracking-wider text-safaricom-green">Connection: Stable</span>
           </div>
         </div>
-        
-        <div className="flex items-center gap-6">
+
+        {/* Mobile score */}
+        <div className="flex md:hidden items-center gap-2">
+          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SCORE</span>
+          <span className="text-sm font-mono font-bold text-safaricom-green">{score.toLocaleString()}</span>
+        </div>
+
+        <div className="hidden md:flex items-center gap-6">
           <div className="flex flex-col items-end">
             <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Security Posture</span>
             <span className="text-[11px] font-mono font-bold text-safaricom-green">99.98% EFFECTIVE</span>
@@ -461,9 +489,9 @@ export default function App() {
             <Bell className="w-5 h-5 text-slate-400 cursor-pointer hover:text-slate-600 transition-colors" />
             <Settings className="w-5 h-5 text-slate-400 cursor-pointer hover:text-slate-600 transition-colors" />
             <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 overflow-hidden cursor-pointer">
-              <img 
-                alt="User profile" 
-                src="https://picsum.photos/seed/cyber/100/100" 
+              <img
+                alt="User profile"
+                src="https://picsum.photos/seed/cyber/100/100"
                 referrerPolicy="no-referrer"
               />
             </div>
@@ -473,7 +501,7 @@ export default function App() {
 
       <div className="flex flex-1 pt-14">
         {/* Sidebar Navigation */}
-        <aside className="w-60 bg-white flex flex-col h-full py-6 border-r border-slate-100">
+        <aside className="hidden md:flex md:flex-col w-60 bg-white h-full py-6 border-r border-slate-100">
           <div className="px-6 mb-8">
             <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-tight">Operator Console</h2>
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">Level 4 Clearance</p>
@@ -542,7 +570,11 @@ export default function App() {
         </aside>
 
         {/* Main Gameplay Canvas */}
-        <main className="flex-1 relative overflow-hidden grid-background" ref={containerRef}>
+        <main
+          className="flex-1 relative overflow-hidden grid-background touch-none"
+          onTouchStart={handleTouchStart}
+          onTouchEnd={handleTouchEnd}
+        >
           {/* Coordinate Markers */}
           <div className="absolute top-4 left-4 font-mono text-[9px] text-slate-400">[LAT: 029ms]</div>
           <div className="absolute top-4 right-4 font-mono text-[9px] text-slate-400">[SESSION: 00:00:16]</div>
@@ -554,8 +586,8 @@ export default function App() {
           {/* Decorative Radial */}
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] rounded-full sentinel-ring pointer-events-none"></div>
 
-          <div className="absolute inset-0 p-12">
-            <div className="relative w-full h-full">
+          <div className="absolute inset-0 p-2 md:p-12">
+            <div className="relative w-full h-full" ref={containerRef}>
               
               {/* The Data Stream (Snake) */}
               {snake.map((segment, i) => (
@@ -675,10 +707,23 @@ export default function App() {
               </svg>
             </div>
           </div>
+
+          {/* Mobile: difficulty badge */}
+          <div className="absolute top-3 left-3 md:hidden z-30">
+            <div className="flex items-center gap-1.5 px-2 py-1 bg-white/90 rounded-lg border border-slate-200 shadow-sm">
+              <div className="w-1.5 h-1.5 rounded-full bg-safaricom-green animate-pulse"></div>
+              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wide">{difficulty}</span>
+            </div>
+          </div>
+
+          {/* Mobile: D-pad */}
+          <div className="absolute bottom-4 right-4 md:hidden z-30">
+            <DPad onDir={handleDirection} />
+          </div>
         </main>
 
         {/* Telemetry Sidebar */}
-        <aside className="w-80 bg-white border-l border-slate-100 flex flex-col h-[calc(100vh-3.5rem)] p-6 z-10 overflow-hidden">
+        <aside className="hidden md:flex md:flex-col w-80 bg-white border-l border-slate-100 h-[calc(100vh-3.5rem)] p-6 z-10 overflow-hidden">
           {/* Score Card */}
           <div className="bg-slate-50/50 rounded-xl p-6 border border-slate-100 mb-8 relative group overflow-hidden">
             <div className="absolute top-0 right-0 w-20 h-20 bg-safaricom-green/5 rounded-full -mr-6 -mt-6"></div>
