@@ -378,12 +378,13 @@ export default function App() {
   const [quizResult, setQuizResult] = useState<'perfect' | 'fail' | null>(null);
   const [confettiPieces, setConfettiPieces] = useState<{ id: number; left: string; delay: string; color: string }[]>([]);
   const quizHadWrongRef = useRef(false);
+  const quizCompletedRef = useRef(false);
 
   const QUIZ_SCORE_THRESHOLD = 10000;
 
   const checkForQuizTrigger = useCallback(() => {
     const learned = getLearnedFromStorage();
-    if (learned.length >= 14 && score >= QUIZ_SCORE_THRESHOLD && !quizActive && !quizDone) {
+    if (learned.length >= 14 && score >= QUIZ_SCORE_THRESHOLD && !quizActive && !quizDone && !quizCompletedRef.current) {
       setQuizActive(true);
       setQuizQuestions(shuffleArray(QUIZ));
       setQuizIndex(0);
@@ -409,6 +410,7 @@ export default function App() {
   const [operatorName, setOperatorName] = useState('');
   const [floatingScores, setFloatingScores] = useState<FloatingScore[]>([]);
   const [copied, setCopied] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   
   const gameLoopRef = useRef<number | null>(null);
   const lastMoveTimeRef = useRef<number>(0);
@@ -571,6 +573,7 @@ export default function App() {
     setFloatingScores([]);
     setCopied(false);
     setNodes([spawnNode(), spawnNode()]);
+    quizCompletedRef.current = false;
   }, [spawnNode, spawnDataPacket]);
 
   const handleQuizAnswer = useCallback((selectedIndex: number) => {
@@ -623,6 +626,7 @@ export default function App() {
     } else {
       setQuizActive(false);
       setQuizDone(true);
+      quizCompletedRef.current = true;
       if (!quizHadWrongRef.current) {
         setQuizResult('perfect');
         playVictorySound();
@@ -649,7 +653,7 @@ export default function App() {
 
   // Auto-trigger quiz when score threshold is reached with 14/14 lessons
   useEffect(() => {
-    if (gameStarted && !quizActive && !quizDone && score >= QUIZ_SCORE_THRESHOLD && learnedLessons.length >= 14) {
+    if (gameStarted && !quizActive && !quizDone && !quizCompletedRef.current && score >= QUIZ_SCORE_THRESHOLD && learnedLessons.length >= 14) {
       checkForQuizTrigger();
     }
   }, [score, gameStarted, quizActive, quizDone, learnedLessons.length, checkForQuizTrigger]);
@@ -788,6 +792,11 @@ export default function App() {
             <Activity className="w-5 h-5 text-slate-400 cursor-pointer hover:text-slate-600 transition-colors" />
             <Bell className="w-5 h-5 text-slate-400 cursor-pointer hover:text-slate-600 transition-colors" />
             <Settings className="w-5 h-5 text-slate-400 cursor-pointer hover:text-slate-600 transition-colors" />
+            <Icons.RotateCcw
+              className="w-5 h-5 text-slate-400 cursor-pointer hover:text-safaricom-red transition-colors"
+              onClick={() => setShowResetConfirm(true)}
+              title="Reset all progress"
+            />
             <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 overflow-hidden cursor-pointer">
               <img
                 alt="User profile"
@@ -1511,6 +1520,68 @@ export default function App() {
                 ▶ Return to Game
               </button>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Reset Confirmation Modal */}
+      <AnimatePresence>
+        {showResetConfirm && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[300] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="bg-white rounded-2xl p-6 md:p-8 max-w-sm w-full shadow-2xl border border-slate-100 text-center"
+            >
+              <div className="w-12 h-12 bg-safaricom-red/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Icons.AlertTriangle className="w-6 h-6 text-safaricom-red" />
+              </div>
+              <h3 className="text-lg font-extrabold text-slate-900 uppercase tracking-tight mb-2">Reset All Progress?</h3>
+              <p className="text-sm text-slate-500 mb-6">
+                This will erase all lessons learned, scores, and stats. You'll start completely from scratch.
+              </p>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  className="flex-1 py-3 rounded-xl font-bold uppercase tracking-wide text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all active:scale-95"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    localStorage.setItem(LEARNED_KEY, '[]');
+                    setLearnedLessons([]);
+                    setSnake(INITIAL_SNAKE);
+                    setDirection({ x: 1, y: 0 });
+                    directionRef.current = { x: 1, y: 0 };
+                    setScore(0);
+                    setScoreLog([]);
+                    setGameOver(false);
+                    setCurrentLesson(null);
+                    setIsPaused(false);
+                    setStats({ threats: 0, defenses: 0, packets: 0 });
+                    setFloatingScores([]);
+                    setCopied(false);
+                    setQuizActive(false);
+                    setQuizDone(false);
+                    setQuizResult(null);
+                    quizCompletedRef.current = false;
+                    quizHadWrongRef.current = false;
+                    setGameStarted(false);
+                    setShowResetConfirm(false);
+                  }}
+                  className="flex-1 py-3 rounded-xl font-bold uppercase tracking-wide text-[11px] bg-safaricom-red hover:bg-safaricom-red/90 text-white transition-all active:scale-95 shadow-lg shadow-safaricom-red/20"
+                >
+                  Reset Everything
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
