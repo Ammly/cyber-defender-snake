@@ -11,6 +11,19 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import lessonsData from './lessons.json';
 
+const LEARNED_KEY = 'cyberdefender_learned';
+
+function getLearnedFromStorage(): string[] {
+  try {
+    const raw = localStorage.getItem(LEARNED_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed;
+    }
+  } catch {}
+  return [];
+}
+
 const GRID_SIZE = 40;
 const INITIAL_SNAKE = [
   { x: 10, y: 10 },
@@ -90,9 +103,10 @@ const TelemetryItem = ({ time, title, description, type }: Omit<TelemetryData, '
   );
 };
 
-const LessonPopup = ({ lesson, type, onClose }: { lesson: Lesson, type: NodeType, onClose: () => void }) => {
+const LessonPopup = ({ lesson, type, onClose, onMarkLearned, isLearned: initialIsLearned }: { lesson: Lesson, type: NodeType, onClose: () => void, onMarkLearned: (lessonId: string) => void, isLearned: boolean }) => {
   const [timeLeft, setTimeLeft] = useState(20);
   const [maxTime, setMaxTime] = useState(20);
+  const [marked, setMarked] = useState(initialIsLearned);
 
   useEffect(() => {
     if (timeLeft <= 0) {
@@ -194,6 +208,18 @@ const LessonPopup = ({ lesson, type, onClose }: { lesson: Lesson, type: NodeType
             >
               +10s
             </button>
+            <button
+              disabled={marked}
+              onClick={() => {
+                if (!marked) {
+                  onMarkLearned(lesson.id);
+                  setMarked(true);
+                }
+              }}
+              className={`flex-1 py-3 rounded-xl font-bold uppercase tracking-wide text-[11px] transition-all active:scale-95 bg-[rgba(0,166,81,0.1)] border border-[rgba(0,166,81,0.3)] text-[#00A651] ${marked ? 'opacity-60 cursor-default' : ''}`}
+            >
+              {marked ? '✓ Learned!' : '✓ Mark as Learned'}
+            </button>
             <button 
               onClick={onClose}
               className={`flex-[2.5] py-3 rounded-xl font-bold uppercase tracking-wide text-white transition-all active:scale-95 shadow-lg flex items-center justify-center gap-2 ${
@@ -251,6 +277,16 @@ export default function App() {
   const [gridHeight, setGridHeight] = useState(20);
   const [stats, setStats] = useState({ threats: 0, defenses: 0, packets: 0 });
   const [gameStarted, setGameStarted] = useState(false);
+  const [learnedLessons, setLearnedLessons] = useState<string[]>(getLearnedFromStorage);
+
+  const markLessonLearned = useCallback((lessonId: string) => {
+    setLearnedLessons(prev => {
+      if (prev.includes(lessonId)) return prev;
+      const updated = [...prev, lessonId];
+      localStorage.setItem(LEARNED_KEY, JSON.stringify(updated));
+      return updated;
+    });
+  }, []);
   
   const gameLoopRef = useRef<number | null>(null);
   const lastMoveTimeRef = useRef<number>(0);
@@ -752,6 +788,14 @@ export default function App() {
             </div>
           </div>
 
+          {/* Lessons Learned */}
+          <div className="mb-8">
+            <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-2 px-1">LESSONS LEARNED</p>
+            <p id="lessons-learned-count" className="text-xl font-bold text-[#00A651] px-1">
+              {learnedLessons.length} / 14
+            </p>
+          </div>
+
           {/* Live Telemetry */}
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             <h3 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest mb-4 flex justify-between items-center px-1">
@@ -848,6 +892,8 @@ export default function App() {
             lesson={currentLesson.lesson}
             type={currentLesson.type}
             onClose={handleLessonComplete}
+            onMarkLearned={markLessonLearned}
+            isLearned={learnedLessons.includes(currentLesson.lesson.id)}
           />
         )}
       </AnimatePresence>
