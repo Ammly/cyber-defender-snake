@@ -250,6 +250,7 @@ export default function App() {
   const [gridWidth, setGridWidth] = useState(25);
   const [gridHeight, setGridHeight] = useState(20);
   const [stats, setStats] = useState({ threats: 0, defenses: 0, packets: 0 });
+  const [gameStarted, setGameStarted] = useState(false);
   
   const gameLoopRef = useRef<number | null>(null);
   const lastMoveTimeRef = useRef<number>(0);
@@ -434,7 +435,25 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [handleDirection]);
 
+  const startGame = useCallback(() => {
+    setGameStarted(true);
+  }, []);
+
   useEffect(() => {
+    if (gameStarted) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        startGame();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [gameStarted, startGame]);
+
+  useEffect(() => {
+    if (!gameStarted) return;
+
     const difficultySpeeds = {
       EASY: 250,
       NORMAL: 150,
@@ -454,7 +473,7 @@ export default function App() {
     return () => {
       if (gameLoopRef.current) cancelAnimationFrame(gameLoopRef.current);
     };
-  }, [moveSnake, difficulty]);
+  }, [moveSnake, difficulty, gameStarted]);
 
   return (
     <div className="flex flex-col h-[100dvh] font-sans selection:bg-safaricom-green/20">
@@ -830,6 +849,44 @@ export default function App() {
             type={currentLesson.type}
             onClose={handleLessonComplete}
           />
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {!gameStarted && (
+          <motion.div
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.4 }}
+            className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-white"
+          >
+            <div className="flex flex-col items-center gap-8 max-w-md text-center px-6">
+              <div className="flex items-center gap-3">
+                <Shield className="w-12 h-12 text-[#00A651]" />
+                <span className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-900">
+                  Cyber<span className="text-[#00A651]">Defender</span>
+                </span>
+              </div>
+
+              <p className="text-sm md:text-base font-bold text-slate-500 uppercase tracking-widest">
+                Safaricom De<span className="text-[#00A651]">{'\u007Bc0\u007D'}</span>dE 2026 — Security Operations Training
+              </p>
+
+              <div className="mt-8">
+                <p className="text-lg md:text-xl font-extrabold text-slate-400 uppercase tracking-[0.3em] animate-pulse">
+                  PRESS SPACE TO BEGIN
+                </p>
+              </div>
+
+              <button
+                onClick={startGame}
+                className="mt-4 px-10 py-4 bg-[#00A651] hover:bg-[#00A651]/90 text-white rounded-xl font-bold uppercase tracking-wider text-sm shadow-lg shadow-[#00A651]/20 transition-all active:scale-95 flex items-center gap-3"
+              >
+                <span>▶</span>
+                <span>Start Game</span>
+              </button>
+            </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
