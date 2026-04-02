@@ -24,6 +24,52 @@ function getLearnedFromStorage(): string[] {
   return [];
 }
 
+const getAudioCtx = (() => {
+  let ctx: AudioContext | null = null;
+  return () => {
+    if (!ctx) ctx = new AudioContext();
+    if (ctx.state === 'suspended') ctx.resume();
+    return ctx;
+  };
+})();
+
+function playTick() {
+  const ctx = getAudioCtx();
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.connect(g).connect(ctx.destination);
+  o.frequency.value = 600;
+  g.gain.setValueAtTime(0.15, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.08);
+  o.start(); o.stop(ctx.currentTime + 0.08);
+}
+
+function playChime() {
+  const ctx = getAudioCtx();
+  [523, 784].forEach((freq, i) => {
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g).connect(ctx.destination);
+    o.frequency.value = freq;
+    const t = ctx.currentTime + i * 0.12;
+    g.gain.setValueAtTime(0.18, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.2);
+    o.start(t); o.stop(t + 0.2);
+  });
+}
+
+function playAlarm() {
+  const ctx = getAudioCtx();
+  const o = ctx.createOscillator();
+  const g = ctx.createGain();
+  o.connect(g).connect(ctx.destination);
+  o.type = 'sawtooth';
+  o.frequency.value = 150;
+  g.gain.setValueAtTime(0.2, ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+  o.start(); o.stop(ctx.currentTime + 0.3);
+}
+
 const GRID_SIZE = 40;
 const INITIAL_SNAKE = [
   { x: 10, y: 10 },
@@ -64,6 +110,14 @@ interface DataPacket {
   id: string;
   x: number;
   y: number;
+}
+
+interface FloatingScore {
+  id: string;
+  x: number;
+  y: number;
+  amount: number;
+  color: string;
 }
 
 const LESSONS = lessonsData as Lesson[];
@@ -287,6 +341,10 @@ export default function App() {
       return updated;
     });
   }, []);
+
+  const [operatorName, setOperatorName] = useState('');
+  const [floatingScores, setFloatingScores] = useState<FloatingScore[]>([]);
+  const [copied, setCopied] = useState(false);
   
   const gameLoopRef = useRef<number | null>(null);
   const lastMoveTimeRef = useRef<number>(0);
@@ -366,6 +424,14 @@ export default function App() {
 
       const newSnake = [newHead, ...prevSnake];
 
+      // Self-collision check
+      const hitSelf = prevSnake.slice(0, -1).some(s => s.x === newHead.x && s.y === newHead.y);
+      if (hitSelf) {
+        setGameOver(true);
+        playAlarm();
+        return prevSnake;
+      }
+
       // Check node collision
       const hitNodeIndex = nodes.findIndex(node => node.x === newHead.x && node.y === newHead.y);
       const hitPacketIndex = dataPackets.findIndex(p => p.x === newHead.x && p.y === newHead.y);
@@ -385,10 +451,14 @@ export default function App() {
           addScore(500, 'Defense Node Secured', 'success');
           addTelemetry('Lesson Learned', `Secured: ${lesson.defense.name}`, 'success');
           setStats(s => ({ ...s, defenses: s.defenses + 1 }));
+          playChime();
+          setFloatingScores(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), x: newHead.x * GRID_SIZE, y: newHead.y * GRID_SIZE, amount: 500, color: '#46B525' }]);
         } else {
           addScore(250, 'Threat Neutralized', 'danger');
           addTelemetry('Threat Neutralized', `Blocked: ${lesson.threat.name}`, 'danger');
           setStats(s => ({ ...s, threats: s.threats + 1 }));
+          playAlarm();
+          setFloatingScores(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), x: newHead.x * GRID_SIZE, y: newHead.y * GRID_SIZE, amount: 250, color: '#E60000' }]);
         }
         
         // Remove hit node and spawn new one
@@ -400,6 +470,8 @@ export default function App() {
         addScore(1, 'Data Packet Collected', 'info');
         shouldGrow = true;
         setStats(s => ({ ...s, packets: s.packets + 1 }));
+        playTick();
+        setFloatingScores(prev => [...prev, { id: Math.random().toString(36).substr(2, 9), x: newHead.x * GRID_SIZE, y: newHead.y * GRID_SIZE, amount: 1, color: '#60a5fa' }]);
         
         // Remove hit packet and spawn new one
         const newDataPackets = [...dataPackets];
@@ -421,6 +493,34 @@ export default function App() {
     setIsPaused(false);
     setCurrentLesson(null);
   }, [addScore]);
+
+  const restartGame = useCallback(() => {
+    setSnake(INITIAL_SNAKE);
+    setDirection({ x: 1, y: 0 });
+    directionRef.current = { x: 1, y: 0 };
+    setScore(0);
+    setScoreLog([]);
+    setGameOver(false);
+    setCurrentLesson(null);
+    setIsPaused(false);
+    setStats({ threats: 0, defenses: 0, packets: 0 });
+    setDataPackets([spawnDataPacket(), spawnDataPacket(), spawnDataPacket()]);
+    setFloatingScores([]);
+    setCopied(false);
+    setNodes([spawnNode(), spawnNode()]);
+  }, [spawnNode, spawnDataPacket]);
+
+  useEffect(() => {
+    if (!gameOver) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        restartGame();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [gameOver, restartGame]);
 
   const handleDirection = useCallback((d: { x: number; y: number }) => {
     if (d.x !== 0 && directionRef.current.x === 0) {
@@ -478,7 +578,7 @@ export default function App() {
   useEffect(() => {
     if (gameStarted) return;
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.code === 'Space') {
+      if (e.code === 'Space' && !(document.activeElement instanceof HTMLInputElement)) {
         e.preventDefault();
         startGame();
       }
@@ -560,6 +660,9 @@ export default function App() {
           <div className="px-6 mb-8">
             <h2 className="text-sm font-extrabold text-slate-900 uppercase tracking-tight">Operator Console</h2>
             <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-0.5">Level 4 Clearance</p>
+            {operatorName && (
+              <p className="text-[10px] font-bold text-safaricom-green uppercase tracking-wider mt-2">OPERATOR: {operatorName}</p>
+            )}
           </div>
           <nav className="flex-1 px-4 space-y-6">
             <div>
@@ -760,6 +863,23 @@ export default function App() {
                   />
                 ))}
               </svg>
+
+              {/* Floating Score Animations */}
+              <AnimatePresence>
+                {floatingScores.map((fs) => (
+                  <motion.div
+                    key={fs.id}
+                    initial={{ opacity: 1, y: 0 }}
+                    animate={{ opacity: 0, y: -60 }}
+                    transition={{ duration: 0.8, ease: 'easeOut' }}
+                    onAnimationComplete={() => setFloatingScores(prev => prev.filter(s => s.id !== fs.id))}
+                    className="absolute z-50 pointer-events-none"
+                    style={{ left: fs.x, top: fs.y, color: fs.color }}
+                  >
+                    <span className="text-sm font-extrabold drop-shadow-md">+{fs.amount}</span>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           </div>
 
@@ -899,6 +1019,69 @@ export default function App() {
       </AnimatePresence>
 
       <AnimatePresence>
+        {gameOver && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-white/95 backdrop-blur-sm"
+          >
+            <div className="flex flex-col items-center gap-6 max-w-md text-center px-6">
+              <Shield className="w-16 h-16 text-safaricom-red" />
+              <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 uppercase tracking-tight">
+                Mission <span className="text-safaricom-red">Failed</span>
+              </h2>
+
+              <div className="w-full bg-slate-50 rounded-xl p-6 border border-slate-100 space-y-3 text-left">
+                <div className="flex justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Operator</span>
+                  <span className="text-sm font-bold text-slate-900">{operatorName || 'Anonymous'}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Final Score</span>
+                  <span className="text-sm font-extrabold text-safaricom-green">{score.toLocaleString()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Lessons Learned</span>
+                  <span className="text-sm font-bold text-[#00A651]">{learnedLessons.length} / 14</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Rank</span>
+                  <span className="text-sm font-bold text-slate-900">Guardian Prime</span>
+                </div>
+              </div>
+
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={async () => {
+                    const text = `\u{1F6E1}\uFE0F CYBERDEFENDER \u2014 Safaricom De{c0}dE 2026\nOperator: ${operatorName || 'Anonymous'} | Score: ${score.toLocaleString()}\nLessons Learned: ${learnedLessons.length}/14 | Rank: Guardian Prime\ncyber-defender-snake.vercel.app`;
+                    try {
+                      await navigator.clipboard.writeText(text);
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    } catch {}
+                  }}
+                  className="flex-1 py-3 rounded-xl font-bold uppercase tracking-wide text-[11px] bg-slate-100 hover:bg-slate-200 text-slate-600 transition-all active:scale-95 flex items-center justify-center gap-2"
+                >
+                  {copied ? '\u2713 Copied!' : '\u{1F4CB} Copy Score'}
+                </button>
+                <button
+                  onClick={restartGame}
+                  className="flex-[2] py-3 rounded-xl font-bold uppercase tracking-wide text-[11px] bg-safaricom-green hover:bg-safaricom-green/90 text-white transition-all active:scale-95 shadow-lg shadow-safaricom-green/20"
+                >
+                  ▶ Play Again
+                </button>
+              </div>
+
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest animate-pulse">
+                PRESS SPACE TO RESTART
+              </p>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
         {!gameStarted && (
           <motion.div
             initial={{ opacity: 1 }}
@@ -917,6 +1100,18 @@ export default function App() {
               <p className="text-sm md:text-base font-bold text-slate-500 uppercase tracking-widest">
                 Safaricom De<span className="text-[#00A651]">{'\u007Bc0\u007D'}</span>dE 2026 — Security Operations Training
               </p>
+
+              <div className="mt-4 w-full max-w-xs">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Enter Your Operator Name</label>
+                <input
+                  type="text"
+                  value={operatorName}
+                  onChange={(e) => setOperatorName(e.target.value)}
+                  placeholder="Agent..."
+                  maxLength={20}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-center text-sm font-bold text-slate-900 placeholder:text-slate-300 focus:outline-none focus:border-[#00A651] focus:ring-1 focus:ring-[#00A651]"
+                />
+              </div>
 
               <div className="mt-8">
                 <p className="text-lg md:text-xl font-extrabold text-slate-400 uppercase tracking-[0.3em] animate-pulse">
